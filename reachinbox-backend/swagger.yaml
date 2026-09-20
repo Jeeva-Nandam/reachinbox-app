@@ -1,0 +1,190 @@
+openapi: 3.0.3
+info:
+  title: ReachInbox.ai Email Scheduler API
+  version: "1.0.0"
+  description: >
+    Backend for scheduling bulk emails with per-recipient delay, hourly rate limiting,
+    Ethereal SMTP delivery, Elasticsearch search, and Slack notifications.
+servers:
+  - url: http://localhost:4000
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ScheduleRequest:
+      type: object
+      required: [subject, body, startTime, senderId, recipients]
+      properties:
+        subject: { type: string, example: "Welcome to our product" }
+        body: { type: string, example: "Hi,\nWe would like to introduce our product..." }
+        startTime: { type: string, format: date-time, example: "2026-09-20T10:00:00.000Z" }
+        delayBetweenEmailsMs: { type: integer, example: 2000 }
+        hourlyLimit: { type: integer, example: 100 }
+        senderId: { type: string, example: "3f6e2b0e-...-sender" }
+        recipients:
+          type: array
+          items: { type: string, format: email }
+          example: ["john@gmail.com", "alice@gmail.com", "bob@gmail.com"]
+        idempotencyKey: { type: string }
+    ApiError:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      security: []
+      responses:
+        "200": { description: OK }
+  /health/ready:
+    get:
+      summary: Readiness check (Postgres, Redis, Elasticsearch)
+      security: []
+      responses:
+        "200": { description: Ready }
+        "503": { description: Degraded }
+  /api/auth/google:
+    get:
+      summary: Start Google OAuth login
+      security: []
+      responses:
+        "302": { description: Redirects to Google }
+  /api/auth/google/callback:
+    get:
+      summary: Google OAuth callback — issues a JWT
+      security: []
+      responses:
+        "302": { description: Redirects to frontend with ?token=... }
+  /api/auth/dev-login:
+    post:
+      summary: Development-only login (requires NODE_ENV=development and DEV_AUTH_BYPASS=true)
+      security: []
+      responses:
+        "200": { description: Returns a JWT for a fixed local dev user }
+        "403": { description: Disabled outside development }
+  /api/auth/me:
+    get:
+      summary: Get the current authenticated user
+      responses:
+        "200": { description: OK }
+  /api/emails/schedule:
+    post:
+      summary: Schedule a batch of emails
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScheduleRequest" }
+      responses:
+        "201": { description: Created }
+        "400": { description: Validation error, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /api/emails/schedule/csv:
+    post:
+      summary: Schedule a batch of emails from an uploaded CSV of recipients
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                subject: { type: string }
+                body: { type: string }
+                startTime: { type: string }
+                delayBetweenEmailsMs: { type: integer }
+                hourlyLimit: { type: integer }
+                senderId: { type: string }
+                file: { type: string, format: binary }
+      responses:
+        "201": { description: Created }
+  /api/emails/scheduled:
+    get:
+      summary: List scheduled (not yet sent) emails
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        "200": { description: OK }
+  /api/emails/sent:
+    get:
+      summary: List sent/failed emails
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        "200": { description: OK }
+  /api/emails/{id}:
+    get:
+      summary: Get a single email by id
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK }
+        "404": { description: Not found }
+    delete:
+      summary: Cancel a scheduled email
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: Cancelled }
+        "409": { description: Cannot cancel in current status }
+  /api/emails/senders:
+    get:
+      summary: List sender identities for the current tenant
+      responses:
+        "200": { description: OK }
+    post:
+      summary: Create a sender identity (e.g. Ethereal credentials)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, displayName, smtpUser, smtpPassword]
+              properties:
+                email: { type: string }
+                displayName: { type: string }
+                smtpHost: { type: string, default: smtp.ethereal.email }
+                smtpPort: { type: integer, default: 587 }
+                smtpUser: { type: string }
+                smtpPassword: { type: string }
+      responses:
+        "201": { description: Created }
+  /api/emails/search:
+    get:
+      summary: Search emails via Elasticsearch
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+      responses:
+        "200": { description: OK }
+  /api/slack/connect:
+    get:
+      summary: Get the Slack OAuth authorize URL for the current tenant
+      responses:
+        "200": { description: OK }
+  /api/slack/callback:
+    get:
+      summary: Slack OAuth callback
+      security: []
+      responses:
+        "302": { description: Redirects to frontend }
+  /api/slack/disconnect:
+    post:
+      summary: Disconnect Slack for the current tenant
+      responses:
+        "200": { description: OK }
+  /api/slack/status:
+    get:
+      summary: Get Slack connection status
+      responses:
+        "200": { description: OK }

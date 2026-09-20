@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  googleId  String   @unique
+  name      String
+  email     String   @unique
+  avatarUrl String?
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  senders         Sender[]
+  emails          Email[]
+  slackConnection SlackConnection?
+}
+
+model Sender {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  email        String
+  displayName  String
+  smtpHost     String
+  smtpPort     Int
+  smtpUser     String
+  smtpPassword String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  emails Email[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+enum EmailStatus {
+  scheduled
+  processing
+  sent
+  failed
+  cancelled
+  rate_limited
+}
+
+model Email {
+  id             String      @id @default(uuid())
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id])
+  senderId       String
+  sender         Sender      @relation(fields: [senderId], references: [id])
+  recipient      String
+  subject        String
+  body           String
+  scheduledAt    DateTime
+  sentAt         DateTime?
+  status         EmailStatus @default(scheduled)
+  attempts       Int         @default(0)
+  lastError      String?
+  idempotencyKey String
+  batchKey       String
+  bullJobId      String?
+  messageId      String?
+  previewUrl     String?
+  indexedAt      DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status])
+  @@index([tenantId, batchKey])
+  @@index([senderId, scheduledAt])
+  @@index([scheduledAt])
+}
+
+model SlackConnection {
+  id          String   @id @default(uuid())
+  tenantId    String   @unique
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  teamId      String
+  teamName    String
+  accessToken String
+  connectedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
