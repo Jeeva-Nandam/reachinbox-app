@@ -1,7 +1,6 @@
 # ReachInbox.ai — Email Scheduler
 
-Full-stack (Phase 1 backend + Phase 2 frontend) implementation for the
-ReachInbox.ai Software Development Intern assignment. No Docker. Runs directly
+Full-stack (Phase 1 backend + Phase 2 frontend) implementation. No Docker. Runs directly
 on your machine with Node.js, PostgreSQL, Redis and (optionally) Elasticsearch
 installed locally.
 
