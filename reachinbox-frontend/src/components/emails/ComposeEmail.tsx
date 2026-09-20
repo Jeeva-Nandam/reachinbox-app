@@ -37,7 +37,14 @@ export function ComposeEmail({ isOpen, onClose }: ComposeEmailProps) {
     hourlyLimit: 100,
   });
   const [showAddSender, setShowAddSender] = useState(false);
-  const [newSender, setNewSender] = useState({ email: "", displayName: "", smtpUser: "", smtpPassword: "" });
+  const [newSender, setNewSender] = useState({
+    email: "",
+    displayName: "",
+    smtpHost: "smtp.ethereal.email",
+    smtpPort: 587,
+    smtpUser: "",
+    smtpPassword: "",
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const recipients = useMemo(() => {
@@ -119,7 +126,14 @@ export function ComposeEmail({ isOpen, onClose }: ComposeEmailProps) {
     const created = await createSenderMutation.mutateAsync(newSender);
     setSenderId(created.id);
     setShowAddSender(false);
-    setNewSender({ email: "", displayName: "", smtpUser: "", smtpPassword: "" });
+    setNewSender({
+      email: "",
+      displayName: "",
+      smtpHost: "smtp.ethereal.email",
+      smtpPort: 587,
+      smtpUser: "",
+      smtpPassword: "",
+    });
   }
 
   return (
@@ -166,6 +180,21 @@ export function ComposeEmail({ isOpen, onClose }: ComposeEmailProps) {
                 value={newSender.displayName}
                 onChange={(e) => setNewSender((s) => ({ ...s, displayName: e.target.value }))}
               />
+              <div className="grid grid-cols-[1fr_7rem] gap-2">
+                <Input
+                  placeholder="SMTP host"
+                  value={newSender.smtpHost}
+                  onChange={(e) => setNewSender((s) => ({ ...s, smtpHost: e.target.value }))}
+                />
+                <Input
+                  label="Port"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={newSender.smtpPort}
+                  onChange={(e) => setNewSender((s) => ({ ...s, smtpPort: Number(e.target.value) }))}
+                />
+              </div>
               <Input
                 placeholder="SMTP password"
                 type="password"

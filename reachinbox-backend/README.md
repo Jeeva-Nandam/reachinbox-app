@@ -11,7 +11,7 @@ Node.js, PostgreSQL, Redis and (optionally) Elasticsearch installed locally.
 ```
 Frontend (future)
        ↓
-Express API  (npm run dev)         Worker  (npm run worker)
+Express API + Worker (npm run dev)
        ↓                                  ↓
 PostgreSQL  ←───────── source of truth ───┤
        ↑                                  ↓
@@ -271,27 +271,23 @@ npx prisma generate
 npx prisma migrate dev --name init
 ```
 
-Start the API (terminal 1):
+Start the API and email worker:
 
 ```bash
 npm run dev
 ```
 
-Start the worker (terminal 2) — **yes, two terminals are required**: the API
-process only accepts and persists schedule requests; the worker process is what
-actually executes delayed jobs and sends email. Running only `npm run dev` will
-accept schedules that never send.
-
-```bash
-npm run worker
-```
+The API process starts the BullMQ worker automatically, so scheduled emails are
+executed without a second terminal. `npm run worker` remains available when the
+worker needs to run as a separate process.
 
 Production build:
 
 ```bash
 npm run build
-npm start            # runs the API from dist/
-npm run start:worker # runs the worker from dist/, in a second terminal/process
+npm start            # runs the API and worker from dist/
+# Optional: run only the worker in a separate process
+npm run start:worker
 ```
 
 Tests:
@@ -308,8 +304,7 @@ npm test
 2. `cp .env.example .env` and fill in `DATABASE_URL`, `SESSION_SECRET`, `JWT_SECRET`.
    Leave `DEV_AUTH_BYPASS=true` for now so you can test without Google OAuth.
 3. `npx prisma migrate dev`
-4. `npm run dev` (terminal 1)
-5. `npm run worker` (terminal 2)
+4. `npm run dev` (starts the API and worker)
 6. Open Swagger UI: http://localhost:4000/api-docs
 7. Get a dev token:
    ```bash
@@ -349,10 +344,10 @@ npm test
 15. Connect Slack (`GET /api/slack/connect` → open the returned `authorizeUrl` in a
     browser → approve) and re-run step 14 to see the rate-limit notification land
     in Slack.
-16. Stop both processes (`Ctrl+C` in both terminals), wait, then restart
-    `npm run worker` only. Schedule another future batch, kill the worker mid-way
-    through its delay, restart it, and confirm the remaining jobs still fire at
-    the correct time — nothing was lost or duplicated.
+16. Stop the process, wait, then restart `npm run dev`. Schedule another future
+   batch, stop the process mid-way through its delay, restart it, and confirm
+   the remaining jobs still fire at the correct time — nothing was lost or
+   duplicated.
 
 ---
 
@@ -429,7 +424,7 @@ npm test
 |---|---|
 | API exits immediately with "PostgreSQL is unreachable" | Postgres isn't running, or `DATABASE_URL` is wrong. Verify with `psql $DATABASE_URL -c 'select 1'`. |
 | API exits immediately with "Redis is unreachable" | Redis isn't running, or `REDIS_HOST`/`REDIS_PORT` are wrong. Verify with `redis-cli ping`. |
-| Jobs never leave "delayed" | The **worker** isn't running — remember it's a separate process (`npm run worker`), not part of `npm run dev`. |
+| Jobs never leave "delayed" | The email worker failed to start or Redis is unavailable. Check the API logs for worker startup or Redis errors. |
 | `/api/emails/search` always returns empty | Elasticsearch isn't running/reachable, or `ELASTICSEARCH_DISABLED=true`. Check `GET /health/ready`. |
 | Emails stuck in `processing` after a crash | The worker died mid-send. On restart, BullMQ will retry the job per the configured attempts (it was never marked `completed`), and the worker's own idempotency check prevents a genuinely already-sent email from being re-sent twice — see "Idempotency" above for the narrow SMTP-ack window this can't fully close. |
 | `401 UNAUTHENTICATED` on every request | No `Authorization: Bearer <token>` header, and either `NODE_ENV != development` or `DEV_AUTH_BYPASS != true`. Use `POST /api/auth/dev-login` to get a token, or complete Google OAuth. |

@@ -35,5 +35,6 @@ export const emailQueue = new Queue<EmailJobData>(EMAIL_QUEUE_NAME, {
  * will ever exist for it.
  */
 export function emailJobId(emailId: string): string {
-  return `email:${emailId}`;
+  // BullMQ 5 rejects custom job IDs containing a colon.
+  return `email-${emailId}`;
 }

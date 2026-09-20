@@ -20,6 +20,11 @@ export interface SendResult {
 export class EmailSenderService {
   private transporterCache = new Map<string, Transporter>();
 
+  async verifySender(senderId: string): Promise<void> {
+    const transporter = await this.getTransporter(senderId);
+    await transporter.verify();
+  }
+
   private async getTransporter(senderId: string): Promise<Transporter> {
     const cached = this.transporterCache.get(senderId);
     if (cached) return cached;

@@ -36,6 +36,21 @@ export function EmailTable({ emails, dateField, dateLabel, onCancel, cancellingI
                 </td>
                 <td className="px-4 py-3">
                   <EmailStatusBadge status={email.status} />
+                  {email.lastError && (
+                    <p className="mt-1 max-w-[280px] text-xs text-red-600" title={email.lastError}>
+                      {email.lastError}
+                    </p>
+                  )}
+                  {email.previewUrl && (
+                    <a
+                      href={email.previewUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-block text-xs text-brand-600 hover:underline"
+                    >
+                      View test email
+                    </a>
+                  )}
                 </td>
                 {onCancel && (
                   <td className="px-4 py-3 text-right">
@@ -65,6 +80,17 @@ export function EmailTable({ emails, dateField, dateLabel, onCancel, cancellingI
               <p className="truncate text-sm font-medium text-gray-900">{email.recipient}</p>
               <EmailStatusBadge status={email.status} />
             </div>
+            {email.lastError && <p className="mt-1 text-xs text-red-600">{email.lastError}</p>}
+            {email.previewUrl && (
+              <a
+                href={email.previewUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-block text-xs text-brand-600 hover:underline"
+              >
+                View test email
+              </a>
+            )}
             <p className="mt-1 truncate text-sm text-gray-600">{email.subject}</p>
             <p className="mt-2 text-xs text-gray-400">
               {dateLabel}: {formatDateTime(email[dateField])}

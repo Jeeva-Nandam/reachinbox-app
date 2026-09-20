@@ -17,11 +17,14 @@ const sizeClasses = {
 
 export function Modal({ isOpen, onClose, title, children, size = "lg" }: ModalProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", onKeyDown);
     closeButtonRef.current?.focus();
@@ -30,7 +33,7 @@ export function Modal({ isOpen, onClose, title, children, size = "lg" }: ModalPr
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = "";
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

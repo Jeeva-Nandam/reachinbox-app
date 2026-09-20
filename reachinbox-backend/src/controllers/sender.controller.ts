@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../config/database";
 import { asyncHandler } from "../middleware/error.middleware";
-import { NotFoundError } from "../utils/errors";
+import { NotFoundError, ValidationError } from "../utils/errors";
 import { emailSenderService } from "../services/email-sender.service";
 
 const createSenderSchema = z.object({
@@ -25,6 +25,22 @@ export const createSender = asyncHandler(async (req: Request, res: Response) => 
   const sender = await prisma.sender.create({
     data: { ...input, tenantId: req.currentUser!.tenantId },
   });
+
+  try {
+    await emailSenderService.verifySender(sender.id);
+  } catch (err) {
+    await prisma.sender.delete({ where: { id: sender.id } }).catch(() => undefined);
+    emailSenderService.invalidate(sender.id);
+
+    const error = err as NodeJS.ErrnoException & { responseCode?: number; code?: string };
+    if (error.responseCode === 535 || error.code === "EAUTH") {
+      throw new ValidationError(
+        "SMTP authentication failed (535). Check the SMTP username, password/app password, host, and port."
+      );
+    }
+    throw new ValidationError(`SMTP connection failed: ${error.message || "unable to verify sender"}`);
+  }
+
   res.status(201).json({
     success: true,
     data: { id: sender.id, email: sender.email, displayName: sender.displayName, isActive: sender.isActive },

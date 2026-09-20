@@ -6,6 +6,8 @@ import { checkRedisConnection } from "./config/redis";
 import { ensureEmailsIndex } from "./config/elasticsearch";
 import { redisConnection } from "./config/redis";
 import { prisma } from "./config/database";
+import { startEmailWorker } from "./queues/email.worker";
+import { startQueueEventListeners } from "./queues/queue.events";
 
 async function main() {
   const dbOk = await checkDatabaseConnection();
@@ -24,19 +26,20 @@ async function main() {
   await ensureEmailsIndex();
 
   const app = createApp();
+  const queueEvents = startQueueEventListeners();
+  const worker = startEmailWorker();
   const server = app.listen(env.PORT, () => {
     logger.info(`API listening on http://localhost:${env.PORT}`);
     logger.info(`Swagger docs at http://localhost:${env.PORT}/api-docs`);
     logger.info(`Bull Board at http://localhost:${env.PORT}/admin/queues`);
-    logger.info(
-      "NOTE: this process only serves the API. Delayed jobs are executed by the worker — " +
-        "run `npm run worker` in a separate terminal, or the API will accept schedules but nothing will send."
-    );
+    logger.info("Email worker is running in this process; scheduled jobs will be sent automatically.");
   });
 
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received — shutting down gracefully`);
     server.close();
+    await worker.close().catch(() => undefined);
+    await queueEvents.close().catch(() => undefined);
     await redisConnection.quit().catch(() => undefined);
     await prisma.$disconnect().catch(() => undefined);
     process.exit(0);
